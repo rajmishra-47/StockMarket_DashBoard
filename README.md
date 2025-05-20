@@ -1,54 +1,77 @@
-# React + TypeScript + Vite
+# Stock Market Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+![Stock Market Dashboard Screenshot](https://github.com/rajmishra-47/StockMarket_DashBoard/blob/main/SSDashboard.png)
 
-Currently, two official plugins are available:
+## Overview
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+The **Stock Market Dashboard** is a modern, responsive web application designed to provide users with real-time and historical market insights. Using multiple trusted APIs, the dashboard offers a comprehensive view of the stock market's current status, sector performance, market news, and detailed data for key market indicators.
 
-## Expanding the ESLint configuration
+---
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+## Features
 
-```js
-export default tseslint.config({
-  extends: [
-    // Remove ...tseslint.configs.recommended and replace with this
-    ...tseslint.configs.recommendedTypeChecked,
-    // Alternatively, use this for stricter rules
-    ...tseslint.configs.strictTypeChecked,
-    // Optionally, add this for stylistic rules
-    ...tseslint.configs.stylisticTypeChecked,
-  ],
-  languageOptions: {
-    // other options...
-    parserOptions: {
-      project: ['./tsconfig.node.json', './tsconfig.app.json'],
-      tsconfigRootDir: import.meta.dirname,
-    },
-  },
-})
-```
+- **Market Sentiment Indicator:** Quickly see if the overall market is bullish or bearish, helping users gauge current market conditions at a glance.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+- **Stock Market News:** Stay updated with the latest market news sourced from [MarketAux](https://api.marketaux.com/), featuring important headlines relevant to the day's market movement.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+- **Sector Performance Overview:** Detailed performance metrics of all market sectors and individual sectors sourced from [Financial Modeling Prep](https://financialmodelingprep.com/). Data is presented with color-coded percentage changes to easily identify winners and losers.
 
-export default tseslint.config({
-  plugins: {
-    // Add the react-x and react-dom plugins
-    'react-x': reactX,
-    'react-dom': reactDom,
-  },
-  rules: {
-    // other rules...
-    // Enable its recommended typescript rules
-    ...reactX.configs['recommended-typescript'].rules,
-    ...reactDom.configs.recommended.rules,
-  },
-})
-```
+- **Market Indicator Data:**
+  - Key indicators include SPY 500, Gold (GLD), Nasdaq (QQQ), Bitcoin (BTC), Crude Oil (USO), and others.
+  - Display includes current price, absolute and percentage changes.
+  - Positive changes shown in green and negative in red for quick readability.
+
+- **Historical Charting:**
+  - Interactive OHLC (Open-High-Low-Close) charts powered by data from [Finnhub](https://finnhub.io/api/) and [Alpha Vantage](https://www.alphavantage.co/query).
+  - Users can select market indicators to view historical price data.
+  - Timeline manipulation with 1 Day, 1 Week, and 1 Month views.
+
+- **User Interaction:**
+  - Clickable symbols for market indicators to dynamically update the chart and data.
+  - Clean, minimalist UI for intuitive navigation and quick access to vital market data.
+
+---
+
+## Technologies Used
+
+- **Vite:** Fast and modern frontend build tool.
+- **React:** Frontend UI library.
+- **TypeScript (TSX):** For type-safe component development.
+- **Tailwind CSS:** Utility-first CSS framework for styling.
+- **shadcn/ui:** Accessible and customizable UI components built on Radix UI.
+- **APIs:**
+  - Market news: [MarketAux API](https://api.marketaux.com/)
+  - Sector performance: [Financial Modeling Prep API](https://financialmodelingprep.com/)
+  - OHLC data: [Finnhub API](https://finnhub.io/api/)
+  - Historical market data: [Alpha Vantage API](https://www.alphavantage.co/query)
+
+---
+
+## Demo
+
+Try out the live demo of the dashboard on Netlify:  
+[https://relaxed-maamoul-26f95f.netlify.app](https://relaxed-maamoul-26f95f.netlify.app)
+
+---
+
+## Getting Started - Local Setup
+
+Follow these steps to run the app locally on your machine:
+
+### Prerequisites
+
+- [Node.js](https://nodejs.org/) (v16 or later recommended)
+- npm or yarn package manager
+- API keys from the following services:
+  - MarketAux
+  - Financial Modeling Prep
+  - Finnhub
+  - Alpha Vantage
+
+### Installation
+
+1. **Clone the repository**
+
+   ```bash
+   git clone https://github.com/rajmishra-47/StockMarket_DashBoard.git
+   cd StockMarket_DashBoard
