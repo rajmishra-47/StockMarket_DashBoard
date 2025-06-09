@@ -102,12 +102,6 @@ The backend server handles API requests, AI action processing, and proxies WebSo
     ```
     (Note: The `PORT` for the backend defaults to 3001. If you change it, ensure the frontend calls and WebSocket URL reflect this.)
 
-4.  **Start the backend server:**
-    ```bash
-    npm start
-    ```
-    You should see a message like `CopilotKit backend listening at http://localhost:3001`. Keep this terminal window open.
-
 ### 3. Frontend Setup (Project Root Directory)
 
 The frontend is a Vite React application that displays the dashboard and AI interface.
@@ -124,14 +118,38 @@ The frontend is a Vite React application that displays the dashboard and AI inte
     ```bash
     npm install --legacy-peer-deps
     ```
-3.  **Start the frontend development server:**
+
+### 4. Running the Application for Development (Recommended)
+
+To simplify starting both the backend and frontend servers simultaneously for development, you can use the provided `Makefile`:
+
+```bash
+make run-dev
+```
+This command will use `concurrently` (via `npx`) to start both the backend server (from `copilotkit-backend/`) and the frontend Vite development server (from the project root). Their outputs will be interleaved in your terminal with prefixes (e.g., `[backend]`, `[frontend]`).
+
+Press `Ctrl+C` in the terminal to stop both servers.
+
+**Note on `concurrently`:** If `npm install` in the root directory had issues installing `concurrently` locally due to dependency conflicts (as noted during some development setups), `npx concurrently` will attempt to fetch and run it. If you still encounter issues, ensure `concurrently` can be resolved or address the root `npm install` problems.
+
+### 5. Manual Startup (Alternative)
+
+If you prefer to run the backend and frontend servers in separate terminals or without using `make`:
+
+1.  **Start the backend server:** (As described in Backend Setup step 4)
     ```bash
+    # In copilotkit-backend/
+    npm start
+    ```
+    You should see a message like `CopilotKit backend listening at http://localhost:3001`. Keep this terminal window open.
+
+2.  **Start the frontend server:** (As described in Frontend Setup step 3)
+    ```bash
+    # In the project root directory
     npm run dev
     ```
     This will usually open the application in your browser (e.g., at `http://localhost:5173`).
 
-### Running the Application
-
-Ensure both the backend server (in `copilotkit-backend/`) and the frontend server (in the root directory) are running simultaneously in separate terminal windows. Open your browser to the address provided by the Vite development server.
+Ensure both are running simultaneously.
 
 ---
