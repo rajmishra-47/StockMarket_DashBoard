@@ -2,9 +2,10 @@
   "name": "copilotkit-backend",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
   },
   "keywords": [],
   "author": "",
@@ -19,7 +20,9 @@
     "dotenv": "^16.5.0",
     "express": "^5.1.0",
     "lucide-react": "^0.513.0",
+    "node-fetch": "^2.7.0",
     "recharts": "^2.15.3",
-    "tailwind-merge": "^3.3.0"
+    "tailwind-merge": "^3.3.0",
+    "ws": "^8.19.1"
   }
 }

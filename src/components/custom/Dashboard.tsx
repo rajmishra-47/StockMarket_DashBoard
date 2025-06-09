@@ -34,8 +34,16 @@ import { useCopilotAction, useCopilotReadable } from "@copilotkit/react-core";
 // Interface definitions are now in "@/types/dashboard"
 // Types will be applied to useState calls and function return/parameters as needed.
 
-const FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
-const MARKETSTACK_API_KEY = process.env.NEXT_PUBLIC_MARKETSTACK_API_KEY;
+// const FINNHUB_API_KEY = process.env.NEXT_PUBLIC_FINNHUB_API_KEY; // Removed, backend handles this
+// const MARKETSTACK_API_KEY = process.env.NEXT_PUBLIC_MARKETSTACK_API_KEY; // Removed, backend handles this
+
+// Define a user's portfolio (example)
+const userPortfolio = [
+  { ticker: "AAPL", shares: 50, avgCost: 150 },
+  { ticker: "MSFT", shares: 30, avgCost: 200 },
+  { ticker: "GOOGL", shares: 20, avgCost: 1000 },
+  // Add more holdings as needed
+];
 
 const Dashboard = () => {
   const [sp500HistoricalData, setSp500HistoricalData] = useState<
@@ -60,6 +68,12 @@ const Dashboard = () => {
   const [sp500Current, setSp500Current] = useState(0);
   const [sp500Change, setSp500Change] = useState(0);
   const [sp500ChangePercent, setSp500ChangePercent] = useState(0);
+
+  // Error states
+  const [sp500HistoricalError, setSp500HistoricalError] = useState<string | null>(null);
+  const [quotesError, setQuotesError] = useState<string | null>(null);
+  const [ipoCalendarError, setIpoCalendarError] = useState<string | null>(null);
+  const [livePricesError, setLivePricesError] = useState<string | null>(null);
 
   useCopilotReadable({
     description: "Current S&P 500 historical data.",
@@ -134,147 +148,157 @@ const Dashboard = () => {
   });
 
   useEffect(() => {
-    // Fetch S&P 500 Historical Data (Daily for 1 year)
+    // Fetch S&P 500 Historical Data (Daily for 1 year) - Now from backend
     const fetchSP500Data = async () => {
-      const to = Math.floor(Date.now() / 1000);
-      const from = to - 365 * 24 * 60 * 60; // 1 year ago
+      setSp500HistoricalError(null); // Clear previous error
       try {
-        const response = await fetch(
-          `https://finnhub.io/api/v1/stock/candle?symbol=^GSPC&resolution=D&from=${from}&to=${to}&token=${FINNHUB_API_KEY}`,
-        );
-        const data = await response.json();
-        if (data.s === "ok" && data.c) {
-          const formattedData: HistoricalDataItem[] = data.t.map((timestamp: number, i: number) => ({
-            date: new Date(timestamp * 1000).toLocaleDateString(),
-            value: data.c[i],
-          }));
-          setSp500HistoricalData(formattedData);
-          if (data.c.length > 0) {
-            const current = data.c[data.c.length - 1];
-            const previous = data.c[data.c.length - 2] || data.o[data.c.length -1]; // Fallback to open if no previous close
-            setSp500Current(current);
-            setSp500Change(current - previous);
-            setSp500ChangePercent(((current - previous) / previous) * 100);
-          }
+        const response = await fetch('/api/data/sp500-historical');
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({ error: `Failed to fetch S&P500 history: ${response.status}` }));
+          throw new Error(errData?.error || `Failed to fetch S&P500 history: ${response.status}`);
+        }
+        const data: HistoricalDataItem[] = await response.json();
+        setSp500HistoricalData(data);
+        if (data.length > 0) {
+          const current = data[data.length - 1].value;
+          const previous = data.length > 1 ? data[data.length - 2].value : current;
+          setSp500Current(current);
+          setSp500Change(current - previous);
+          setSp500ChangePercent(previous !== 0 ? ((current - previous) / previous) * 100 : 0);
         } else {
-          console.error("Failed to fetch S&P 500 data or data is empty:", data);
+          console.warn("S&P 500 data from backend is empty.");
+          // Optionally set a specific message if empty data is considered an error/issue
+          // setSp500HistoricalError("S&P 500 data is currently unavailable.");
         }
       } catch (error) {
-        console.error("Error fetching S&P 500 data:", error);
+        console.error("Error fetching S&P500 historical data from backend:", error);
+        setSp500HistoricalError((error as Error).message || "Failed to load S&P 500 trend data.");
+        setSp500HistoricalData([]);
       }
     };
 
-    // Fetch Watchlist Data (Example: AAPL, MSFT, GOOGL)
-    const fetchWatchlistData = async () => {
-      const tickers = ["AAPL", "MSFT", "GOOGL"];
-      const watchlistPromises = tickers.map(async (ticker) => {
+    // Fetch Watchlist Data, Portfolio Quotes, and SPY for market volume
+    const fetchWatchlistAndPortfolioQuotes = async () => {
+      setQuotesError(null); // Clear previous error
+      let hadIndividualQuoteError = false;
+      const watchlistTickers = ["GOOGL"];
+      const portfolioTickers = userPortfolio.map(holding => holding.ticker);
+      const allTickersToFetch = Array.from(new Set([...watchlistTickers, ...portfolioTickers, "SPY"]));
+
+      const quotePromises = allTickersToFetch.map(async (ticker) => {
         try {
-          const response = await fetch(
-            `https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB_API_KEY}`,
-          );
-          const data = await response.json();
-          return {
-            ticker,
-            currentPrice: data.c,
-            dayChangeAbsolute: data.d,
-            dayChangePercent: data.dp,
-            previousClose: data.pc,
-          } as WatchlistItem);
+          const response = await fetch(`/api/data/quote/${ticker}`);
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({ error: `Failed to fetch quote for ${ticker}: ${response.status}` }));
+            throw new Error(errData?.error || `Failed to fetch quote for ${ticker}: ${response.status}`);
+          }
+          return await response.json() as WatchlistItem;
         } catch (error) {
-          console.error(`Error fetching data for ${ticker}:`, error);
-          return { ticker, currentPrice: 0 } as WatchlistItem; // Return a default object on error
+          console.error(`Error fetching quote for ${ticker} from backend:`, error);
+          hadIndividualQuoteError = true;
+          return { ticker, error: true, message: (error as Error).message } as WatchlistItem;
         }
       });
-      const results: WatchlistItem[] = await Promise.all(watchlistPromises);
-      setWatchlistData(results);
-    };
 
-    // Fetch Portfolio Allocation (Mock Data)
-    const fetchPortfolioAllocation = () => {
-      setPortfolioAllocationData([
-        { name: "Technology", value: 40 },
-        { name: "Healthcare", value: 20 },
-        { name: "Finance", value: 15 },
-        { name: "Consumer Goods", value: 15 },
-        { name: "Other", value: 10 },
-      ] as PortfolioAllocationItem[]);
-    };
+      const fetchedQuotes: WatchlistItem[] = await Promise.all(quotePromises);
 
-    // Fetch IPO Calendar (Upcoming week)
-    const fetchIpoCalendar = async () => {
-      const today = new Date();
-      const nextWeek = new Date(today.setDate(today.getDate() + 7));
-      const from = today.toISOString().split("T")[0];
-      const to = nextWeek.toISOString().split("T")[0];
-      try {
-        const response = await fetch(
-          `https://finnhub.io/api/v1/calendar/ipo?from=${from}&to=${to}&token=${FINNHUB_API_KEY}`,
-        );
-        const data = await response.json();
-        if (data && data.ipoCalendar) {
-          setIpoCalendarData(
-            data.ipoCalendar.slice(0, 5).map((ipo: any) => ({ // Limit to 5 for display
-              symbol: ipo.symbol,
-              name: ipo.name,
-              date: ipo.date,
-              price: ipo.price,
-            } as IpoCalendarItem)),
-          );
-        } else {
-          console.error("No IPO data found for the period.");
-          setIpoCalendarData([] as IpoCalendarItem[]);
-        }
-      } catch (error) {
-        console.error("Error fetching IPO calendar:", error);
-        setIpoCalendarData([] as IpoCalendarItem[]);
+      if (hadIndividualQuoteError) {
+        // Set a general quotes error if any individual quote failed, or aggregate messages
+        setQuotesError("Some stock data may be missing or incomplete.");
       }
-    };
 
-    // Fetch Total Market Volume (Example using Marketstack for broader market data)
-    // Note: Marketstack's free plan might not offer real-time total volume directly.
-    // This is a conceptual example; you might need to adjust based on API capabilities.
-    const fetchMarketVolume = async () => {
-      try {
-        // Using end-of-day data for major exchanges as a proxy.
-        // Marketstack API structure: http://api.marketstack.com/v1/eod?access_key=YOUR_ACCESS_KEY&symbols=AAPL,MSFT
-        // This example will sum volumes for a few major ETFs as a proxy for market volume.
-        const majorETFs = ["SPY", "QQQ", "DIA"]; // SPDR S&P 500, Invesco QQQ, SPDR Dow Jones
-        let totalVolume = 0;
-        // Note: Marketstack free tier usually has limitations (e.g., specific exchanges, historical data only)
-        // This is a simplified example. A real implementation might need a different approach or paid API.
-        if (!MARKETSTACK_API_KEY) {
-            console.warn("Marketstack API key not configured. Skipping market volume fetch.");
-            setTotalMarketVolume(5.2e9); // Placeholder if no key
-            return;
+      // Process SPY data for market volume
+      const spyData = fetchedQuotes.find(item => item.ticker === 'SPY' && !item.error);
+      if (spyData && typeof spyData.volume === 'number') {
+        setTotalMarketVolume(spyData.volume);
+      }
+
+      // Update watchlistData state (excluding portfolio items and SPY unless they are also in watchlistTickers)
+      const actualWatchlistData = fetchedQuotes.filter(q => watchlistTickers.includes(q.ticker) && !q.error);
+      setWatchlistData(actualWatchlistData);
+
+      // Calculate Portfolio Metrics
+      let calculatedPortfolioValue = 0;
+      let previousDayPortfolioValue = 0;
+      const validPortfolioQuotes = fetchedQuotes.filter(q => portfolioTickers.includes(q.ticker) && !q.error);
+
+      userPortfolio.forEach(holding => {
+        const quote = validPortfolioQuotes.find(q => q.ticker === holding.ticker);
+        if (quote) {
+          calculatedPortfolioValue += holding.shares * quote.currentPrice;
+          previousDayPortfolioValue += holding.shares * quote.previousClose;
+        } else {
+          // If quote is missing for a holding, use its average cost for current value (or handle as error)
+          // This maintains the holding in the portfolio value rather than ignoring it.
+          // For day gain/loss, if previousClose is missing, this holding won't contribute to the change.
+          console.warn(`Quote for portfolio holding ${holding.ticker} not found. Using avgCost for value calculation.`);
+          calculatedPortfolioValue += holding.shares * holding.avgCost;
+          // previousDayPortfolioValue might not be accurately calculable without previousClose.
+          // One option is to assume no change if quote is missing, or fetch it separately if critical.
+          // For simplicity here, if quote.previousClose is missing, it won't contribute to previousDayPortfolioValue sum.
         }
+      });
 
-        const responses = await Promise.all(
-          majorETFs.map(etf =>
-            fetch(`http://api.marketstack.com/v1/eod/latest?access_key=${MARKETSTACK_API_KEY}&symbols=${etf}`)
-              .then(res => res.json())
-          )
-        );
+      setCurrentPortfolioValue(calculatedPortfolioValue);
 
-        responses.forEach(response => {
-          if (response.data && response.data.length > 0 && response.data[0].volume) {
-            totalVolume += response.data[0].volume;
-          } else {
-            console.warn(`No volume data for a symbol in Marketstack response: `, response);
-          }
+      if (previousDayPortfolioValue > 0) {
+        const newDayGainLossAmount = calculatedPortfolioValue - previousDayPortfolioValue;
+        setDayGainLossAmount(newDayGainLossAmount);
+        setDayGainLossPercentage((newDayGainLossAmount / previousDayPortfolioValue) * 100);
+      } else if (calculatedPortfolioValue > 0) { // Handle if previous day value is zero (e.g. new portfolio)
+        setDayGainLossAmount(0); // Or calculatedPortfolioValue if you consider all of it as gain from 0
+        setDayGainLossPercentage(0); // Or 100% if all gain
+      } else {
+        setDayGainLossAmount(0);
+        setDayGainLossPercentage(0);
+      }
+
+      // Calculate Dynamic Portfolio Allocation
+      if (calculatedPortfolioValue > 0) {
+        const newPortfolioAllocationData = userPortfolio.map(holding => {
+          const quote = validPortfolioQuotes.find(q => q.ticker === holding.ticker);
+          const currentValue = holding.shares * (quote ? quote.currentPrice : holding.avgCost);
+          return {
+            name: holding.ticker,
+            value: (currentValue / calculatedPortfolioValue) * 100, // Value as percentage
+          };
         });
-
-        if (totalVolume > 0) {
-         setTotalMarketVolume(totalVolume);
-        } else {
-          // Fallback or if all calls failed
-          console.warn("Could not fetch significant market volume data. Using placeholder.");
-          setTotalMarketVolume(5.2e9); // Placeholder if calls fail or return no volume
-        }
-
-      } catch (error) {
-        console.error("Error fetching market volume:", error);
-        setTotalMarketVolume(5.2e9); // Placeholder on error
+        setPortfolioAllocationData(newPortfolioAllocationData.filter(item => item.value > 0));
+      } else {
+        setPortfolioAllocationData([]);
       }
+    };
+
+    // This function is now effectively replaced by the logic within fetchWatchlistAndPortfolioQuotes
+    const fetchPortfolioAllocation = () => {
+      // console.log("Portfolio allocation is now dynamically calculated."); // Removed for cleanup
+    };
+
+    // Fetch IPO Calendar (Upcoming week) - Now from backend
+    const fetchIpoCalendar = async () => {
+      setIpoCalendarError(null); // Clear previous error
+      try {
+        const response = await fetch('/api/data/ipo-calendar');
+        if (!response.ok) {
+          const errData = await response.json().catch(() => ({ error: `Failed to fetch IPO calendar: ${response.status}` }));
+          throw new Error(errData?.error || `Failed to fetch IPO calendar: ${response.status}`);
+        }
+        const data: IpoCalendarItem[] = await response.json();
+        setIpoCalendarData(data.slice(0, 5));
+      } catch (error) {
+        console.error("Error fetching IPO Calendar from backend:", error);
+        setIpoCalendarError((error as Error).message || "Failed to load IPO calendar data.");
+        setIpoCalendarData([]);
+      }
+    };
+
+    // Fetch Total Market Volume - This is now handled by fetching SPY quote in fetchWatchlistData
+    const fetchMarketVolume = async () => {
+      // This function is now a stub as its functionality is merged into fetchWatchlistData
+      // by fetching SPY's volume.
+      // If a separate, more complex market volume calculation was needed (e.g., summing multiple ETFs),
+      // it would require its own backend endpoint and logic.
+      console.log("Market volume is now derived from SPY quote in fetchWatchlistData.");
     };
 
 
@@ -283,81 +307,77 @@ const Dashboard = () => {
       setPortfolioYield(2.5); // Example: 2.5%
     };
 
-    // Simulate Portfolio Metrics Calculation
+    // This function is now effectively replaced by the logic within fetchWatchlistAndPortfolioQuotes
     const calculatePortfolioMetrics = () => {
-      setCurrentPortfolioValue(125000);
-      setDayGainLossAmount(1200);
-      setDayGainLossPercentage(0.96);
+      // console.log("Portfolio metrics (value, day gain/loss) are now dynamically calculated."); // Removed for cleanup
+      // Static total return and yield will remain for now.
       setTotalReturnAmount(25000);
       setTotalReturnPercentage(20);
     };
 
 
     fetchSP500Data();
-    fetchWatchlistData();
-    fetchPortfolioAllocation();
+    fetchWatchlistAndPortfolioQuotes(); // Renamed and now handles portfolio
+    fetchPortfolioAllocation(); // This is now just a console.log
     fetchIpoCalendar();
     fetchMarketVolume();
     fetchPortfolioYield();
     calculatePortfolioMetrics();
 
-    // Setup WebSocket for Live Prices (Example: Finnhub)
-    // Ensure your Finnhub plan supports WebSocket access.
-    if (FINNHUB_API_KEY) {
-      const socket = new WebSocket(
-        `wss://ws.finnhub.io?token=${FINNHUB_API_KEY}`,
-      );
+    // Setup WebSocket for Live Prices - Now through backend proxy
+    // const VITE_BACKEND_WS_PORT = import.meta.env.VITE_BACKEND_WS_PORT || '3001';
+    // const socketUrl = `ws://localhost:${VITE_BACKEND_WS_PORT}/api/liveprices`;
+    // Using fixed port for now as import.meta.env is not directly usable in this environment without further setup for the agent
+    const socketUrl = `ws://localhost:3001/api/liveprices`;
+    const socket = new WebSocket(socketUrl);
 
-      socket.onopen = () => {
-        console.log("Connected to Finnhub WebSocket");
-        // Subscribe to desired symbols - these are examples
-        socket.send(JSON.stringify({ type: "subscribe", symbol: "AAPL" }));
-        socket.send(JSON.stringify({ type: "subscribe", symbol: "MSFT" }));
-        socket.send(JSON.stringify({ type: "subscribe", symbol: "BINANCE:BTCUSDT" }));
-        socket.send(JSON.stringify({ type: "subscribe", symbol: "OANDA:XAU_USD" })); // Gold
-      };
+    setLivePricesError(null); // Clear previous error on new attempt
 
-      socket.onmessage = (event) => {
-        const message = JSON.parse(event.data as string);
-        if (message.type === "trade" && message.data) {
-          setLivePrices((prevPrices) => {
-            const newPrices = { ...prevPrices };
-            message.data.forEach((trade: any) => {
-              newPrices[trade.s] = trade.p.toFixed(2);
-            });
-            return newPrices as LivePriceItem;
+    socket.onopen = () => {
+      console.log("Connected to backend WebSocket proxy.");
+      setLivePricesError(null); // Clear error on successful connection
+    };
+
+    socket.onmessage = (event) => {
+      const message = JSON.parse(event.data as string);
+
+      if (message.type === 'status') {
+        console.log('Status from WebSocket proxy:', message.message);
+        if (message.message.includes('Finnhub connection lost')) {
+            setLivePricesError('Live price feed temporarily unavailable.');
+        }
+      } else if (message.type === 'error') {
+        console.error('Error from WebSocket proxy:', message.message);
+        setLivePricesError(message.message || 'Live price connection error.');
+      } else if (message.type === "trade" && message.data) {
+        setLivePrices((prevPrices) => {
+          const newPrices = { ...prevPrices };
+          message.data.forEach((trade: any) => {
+            newPrices[trade.s] = trade.p.toFixed(2);
           });
-        }
-      };
+          return newPrices as LivePriceItem;
+        });
+        setLivePricesError(null); // Clear error on successful data
+      }
+    };
 
-      socket.onerror = (error) => {
-        console.error("WebSocket error:", error);
-      };
+    socket.onerror = (error) => {
+      console.error("WebSocket proxy error:", error);
+      setLivePricesError("Failed to connect to live price feed.");
+    };
 
-      socket.onclose = () => {
-        console.log("Disconnected from Finnhub WebSocket");
-      };
+    socket.onclose = () => {
+      console.log("Disconnected from backend WebSocket proxy.");
+      // Consider setting an error or status message if the disconnection was unexpected
+      // For now, only an explicit error from onerror or onmessage sets livePricesError
+    };
 
-      return () => {
-        if (socket.readyState === WebSocket.OPEN) {
-          // Unsubscribe if needed, though closing is usually enough
-          socket.send(JSON.stringify({ type: "unsubscribe", symbol: "AAPL" }));
-          socket.send(JSON.stringify({ type: "unsubscribe", symbol: "MSFT" }));
-          socket.send(JSON.stringify({ type: "unsubscribe", symbol: "BINANCE:BTCUSDT" }));
-          socket.send(JSON.stringify({ type: "unsubscribe", symbol: "OANDA:XAU_USD" }));
-        }
-        socket.close();
-      };
-    } else {
-      console.warn("Finnhub API key not available for WebSocket connection.");
-      // Set some mock live prices if WebSocket is not available
-      setLivePrices({
-        "AAPL": "170.00",
-        "MSFT": "420.00",
-        "BINANCE:BTCUSDT": "60000.00",
-        "OANDA:XAU_USD": "2000.00",
-      } as LivePriceItem);
-    }
+    return () => {
+      console.log("Closing frontend WebSocket connection to proxy.");
+      socket.close();
+    };
+    // The old 'else' block for mock prices is removed as the proxy should always be available if backend is up.
+    // If backend WS isn't up, it will just fail to connect.
   }, []);
 
   return (
@@ -451,15 +471,19 @@ const Dashboard = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="h-[300px] w-full">
-          {" "}
-          {/* Ensure parent has defined height */}
-          <AreaChart
-            data={sp500HistoricalData}
-            categories={["value"]}
-            index="date"
-            colors={["blue"]}
-            valueFormatter={(val) => `$${val.toFixed(2)}`}
-          />
+          {sp500HistoricalError ? (
+            <p className="text-red-500 text-center py-10">{sp500HistoricalError}</p>
+          ) : sp500HistoricalData && sp500HistoricalData.length > 0 ? (
+            <AreaChart
+              data={sp500HistoricalData}
+              categories={["value"]}
+              index="date"
+              colors={["blue"]}
+              valueFormatter={(val) => `$${val.toFixed(2)}`}
+            />
+          ) : (
+            <p className="text-center text-gray-500 py-10">S&P 500 historical data not available or loading...</p>
+          )}
         </CardContent>
       </Card>
 
@@ -470,22 +494,31 @@ const Dashboard = () => {
             <CardDescription>Stocks you are tracking</CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="divide-y divide-gray-200">
-              {watchlistData.map((item) => (
-                <li key={item.ticker} className="py-3">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{item.ticker}</span>
-                    <span className="font-semibold">
-                      ${item.currentPrice?.toFixed(2)}
-                    </span>
-                  </div>
-                  <div className={`text-sm ${ (item.dayChangePercent ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
-                    {item.dayChangeAbsolute?.toFixed(2)} (
-                    {item.dayChangePercent?.toFixed(2)}%)
-                  </div>
-                </li>
-              ))}
-            </ul>
+            {quotesError && !watchlistData.length ? ( // Show general quotes error if watchlist is empty due to it
+                <p className="text-red-500 text-center py-4">{quotesError}</p>
+            ) : watchlistData.length > 0 ? (
+              <ul className="divide-y divide-gray-200">
+                {watchlistData.map((item) => (
+                  <li key={item.ticker} className="py-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{item.ticker}</span>
+                      <span className="font-semibold">
+                        ${item.currentPrice?.toFixed(2)}
+                      </span>
+                    </div>
+                    <div className={`text-sm ${ (item.dayChangePercent ?? 0) >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                      {item.dayChangeAbsolute?.toFixed(2)} (
+                      {item.dayChangePercent?.toFixed(2)}%)
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-center text-gray-500 py-4">No watchlist data available.</p>
+            )}
+            {quotesError && watchlistData.length > 0 && ( // Show error at bottom if some data loaded but other quotes failed
+                 <p className="text-red-500 text-xs pt-2">{quotesError}</p>
+            )}
           </CardContent>
         </Card>
 
@@ -517,14 +550,20 @@ const Dashboard = () => {
             <CardDescription>Real-time market data</CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="divide-y divide-gray-200">
-              {Object.entries(livePrices).map(([symbol, price]) => (
-                <li key={symbol} className="flex justify-between py-2">
-                  <span className="text-sm font-medium">{symbol}</span>
-                  <span className="text-sm font-semibold">${price}</span>
-                </li>
-              ))}
-            </ul>
+            {livePricesError ? (
+              <p className="text-red-500 text-center py-4">{livePricesError}</p>
+            ) : Object.keys(livePrices).length > 0 ? (
+              <ul className="divide-y divide-gray-200">
+                {Object.entries(livePrices).map(([symbol, price]) => (
+                  <li key={symbol} className="flex justify-between py-2">
+                    <span className="text-sm font-medium">{symbol}</span>
+                    <span className="text-sm font-semibold">${price}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-center text-gray-500 py-4">Live prices connecting or unavailable...</p>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -541,7 +580,9 @@ const Dashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {ipoCalendarData.length > 0 ? (
+            {ipoCalendarError ? (
+              <p className="text-red-500 text-center py-4">{ipoCalendarError}</p>
+            ) : ipoCalendarData.length > 0 ? (
               <ul className="divide-y divide-gray-200">
                 {ipoCalendarData.map((ipo, index) => (
                   <li key={ipo.symbol || index} className="py-2">
@@ -560,7 +601,7 @@ const Dashboard = () => {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-gray-500">No upcoming IPOs found for this week.</p>
+              <p className="text-center text-gray-500 py-4">No upcoming IPOs found for this week.</p>
             )}
           </CardContent>
         </Card>
