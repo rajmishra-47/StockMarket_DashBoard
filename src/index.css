@@ -48,6 +48,22 @@
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
   --sidebar-ring: oklch(0.708 0 0);
+
+  /* CopilotKit Theme Variables */
+  --copilot-kit-primary-color: #3b82f6; /* Example: Blue-500 */
+  --copilot-kit-contrast-color: white;
+  --copilot-kit-secondary-contrast-color: #1e293b; /* Example: Slate-800 */
+  --copilot-kit-background-color: white;
+  --copilot-kit-muted-color: #64748b; /* Example: Slate-500 */
+  --copilot-kit-separator-color: rgba(0, 0, 0, 0.08);
+  --copilot-kit-scrollbar-color: rgba(0, 0, 0, 0.2);
+  --copilot-kit-border-radius: 0.5rem; /* e.g., 8px */
+  --copilot-kit-font-family: inherit; /* Use app's font */
+  --copilot-kit-input-background-color: #f3f4f6; /* Example: Gray-100 */
+  --copilot-kit-input-border-color: #d1d5db; /* Example: Gray-300 */
+  --copilot-kit-input-text-color: #111827; /* Example: Gray-900 */
+  --copilot-kit-button-hover-background-color: #2563eb; /* Example: Blue-600 (darker blue) */
+  --copilot-kit-disabled-text-color: #9ca3af; /* Example: Gray-400 */
 }
 
 a {
@@ -174,6 +190,22 @@ button:focus-visible {
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.556 0 0);
+
+  /* CopilotKit Dark Theme Variables */
+  --copilot-kit-primary-color: #60a5fa; /* Example: Blue-400 */
+  --copilot-kit-contrast-color: #111827; /* Example: Gray-900 (dark) */
+  --copilot-kit-secondary-contrast-color: #f9fafb; /* Example: Gray-50 (light) */
+  --copilot-kit-background-color: #1f2937; /* Example: Gray-800 (dark background) */
+  --copilot-kit-muted-color: #9ca3af; /* Example: Gray-400 */
+  --copilot-kit-separator-color: rgba(255, 255, 255, 0.12);
+  --copilot-kit-scrollbar-color: rgba(255, 255, 255, 0.25);
+  /* --copilot-kit-border-radius: 0.5rem; */ /* Already in :root, typically doesn't change with theme */
+  /* --copilot-kit-font-family: inherit; */ /* Already in :root */
+  --copilot-kit-input-background-color: #374151; /* Example: Gray-700 */
+  --copilot-kit-input-border-color: #4b5563; /* Example: Gray-600 */
+  --copilot-kit-input-text-color: #f3f4f6; /* Example: Gray-100 */
+  --copilot-kit-button-hover-background-color: #3b82f6; /* Example: Blue-500 (same as light primary) */
+  --copilot-kit-disabled-text-color: #6b7280; /* Example: Gray-500 */
 }
 
 @layer base {
@@ -183,4 +215,13 @@ button:focus-visible {
   body {
     @apply bg-background text-foreground;
   }
+}
+
+/* Optional: Custom styling for CopilotKit elements if needed, from guide */
+.copilotKitSidebar .copilotKitWindow {
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.15);
+}
+
+.copilotKitButton {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
